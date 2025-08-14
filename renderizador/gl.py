@@ -43,16 +43,14 @@ class GL:
         # pelo tamanho da lista e assuma que sempre vira uma quantidade par de valores.
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o Polypoint2D
         # você pode assumir inicialmente o desenho dos pontos com a cor emissiva (emissiveColor).
-
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("Polypoint2D : pontos = {0}".format(point)) # imprime no terminal pontos
-        print("Polypoint2D : colors = {0}".format(colors)) # imprime no terminal as cores
-
-        # Exemplo:
-        pos_x = GL.width//2
-        pos_y = GL.height//2
-        gpu.GPU.draw_pixel([pos_x, pos_y], gpu.GPU.RGB8, [255, 0, 0])  # altera pixel (u, v, tipo, r, g, b)
-        # cuidado com as cores, o X3D especifica de (0,1) e o Framebuffer de (0,255)
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+        
+        for p in range(0, len(point), 2):
+            print([int(point[p]), int(point[p+1])])
+            if 0 <= int(point[p]) < GL.width and 0 <= int(point[p+1]) < GL.height:
+                gpu.GPU.draw_pixel([int(point[p]), int(point[p+1])], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+            
         
     @staticmethod
     def polyline2D(lineSegments, colors):
@@ -68,14 +66,74 @@ class GL:
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o Polyline2D
         # você pode assumir inicialmente o desenho das linhas com a cor emissiva (emissiveColor).
 
-        print("Polyline2D : lineSegments = {0}".format(lineSegments)) # imprime no terminal
-        print("Polyline2D : colors = {0}".format(colors)) # imprime no terminal as cores
+        # print("Polyline2D : lineSegments = {0}".format(lineSegments)) # imprime no terminal
+        # print("Polyline2D : colors = {0}".format(colors)) # imprime no terminal as cores
         
-        # Exemplo:
-        pos_x = GL.width//2
-        pos_y = GL.height//2
-        gpu.GPU.draw_pixel([pos_x, pos_y], gpu.GPU.RGB8, [255, 0, 255])  # altera pixel (u, v, tipo, r, g, b)
-        # cuidado com as cores, o X3D especifica de (0,1) e o Framebuffer de (0,255)
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+        
+                
+        for p in range(0, len(lineSegments)-2, 2):
+            
+            x1 = int(lineSegments[p])
+            y1 = int(lineSegments[p+1])
+            x2 = int(lineSegments[p+2])
+            y2 = int(lineSegments[p+3])
+            
+            
+            if x1 == x2:
+                for u in range(y1, y2+1):
+                    if 0 <= u < GL.height and 0 <= x1 < GL.width:
+                        gpu.GPU.draw_pixel([x1, u], gpu.GPU.RGB8, color)
+            elif y1 == y2:
+                for u in range(x1, x2+1):
+                    if 0 <= u < GL.width and 0 <= y1 < GL.height:
+                        gpu.GPU.draw_pixel([u, y1], gpu.GPU.RGB8, color)
+                    
+            else:                
+                v = y1
+                s = (y2-y1)/(x2-x1)
+                
+                if s > 1:
+                    v = x1
+                    s = (x2-x1)/(y2-y1)
+                    
+                    for u in range(y1, y2+1):
+                        
+                        if 0 <= u < GL.height and 0 <= v < GL.width:
+                            gpu.GPU.draw_pixel([round(v), u], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                        v += s
+                
+                else:
+                    for u in range(x1, x2+1):
+                        
+                        if 0 <= u < GL.width and 0 <= v < GL.height:
+                            gpu.GPU.draw_pixel([u, round(v)], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                        v += s
+                    
+                    
+                # Pesquisa - https://www.geeksforgeeks.org/dsa/bresenhams-line-generation-algorithm/
+                
+                # m_new = 2 * (y2 - y1)
+                # slope_error_new = m_new - (x2 - x1)
+
+                # y = y1
+                # for x in range(x1, x2+1):
+
+                #     gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+
+
+                #     # Add slope to increment angle formed
+                #     slope_error_new = slope_error_new + m_new
+
+                #     # Slope error reached limit, time to
+                #     # increment y and update slope error.
+                #     if (slope_error_new >= 0):
+                #         y = y+1
+                #         slope_error_new = slope_error_new - 2 * (x2 - x1)
+            
+            
+            
 
     @staticmethod
     def circle2D(radius, colors):
@@ -109,9 +167,73 @@ class GL:
         # você pode assumir inicialmente o desenho das linhas com a cor emissiva (emissiveColor).
         print("TriangleSet2D : vertices = {0}".format(vertices)) # imprime no terminal
         print("TriangleSet2D : colors = {0}".format(colors)) # imprime no terminal as cores
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+        
+        
+        def isInside(p1, p2, p3, x, y):
+            
+            def L(a, b, x, y):
+                x0, y0 = a 
+                x1, y1 = b
+                return (y1 - y0) * (x - x0) - (x1 - x0) * (y - y0)
+                
+            v1 = L(p1, p2, x, y)
+            v2 = L(p2, p3, x, y)
+            v3 = L(p3, p1, x, y)
+            
+            return (v1 >= 0 and v2 >= 0 and v3 >= 0) or (v1 <= 0 and v2 <= 0 and v3 <= 0)
+            
+        for p in range(0, len(vertices)-5, 6):
+            
+            a = (round(vertices[p]), round(vertices[p+1]))   
+            b = (round(vertices[p+2]), round(vertices[p+3]))   
+            c = (round(vertices[p+4]), round(vertices[p+5]))
+                                    
+            xs = [a[0], b[0], c[0]]
+            ys = [a[1], b[1], c[1]]
+            
+            x_min = math.floor(min(xs))
+            x_max = math.ceil(max(xs))
+            
+            y_min = math.floor(min(ys))
+            y_max = math.ceil(max(ys))
+            
+            # Não deu certo
+            # # Colocar os pontos em ordem anti-horária
+            
+            # # Primeiro ponto é o mais baixo
+            # p1 = [p for p in [a, b, c] if p[1] == y_min][0]
+            
+            # # Segundo ponto é o que está à direita ou acima do ponto anterior
+            # if p1[0] == x_max:
+            #     p2 = [p for p in [a, b, c] if p[1] == y_max][0]
+            # else:
+            #     p2 = [p for p in [a, b, c] if p[0] == x_max][0]
+            
+            # # O último é o que não foi definido até agora
+            # p3 = [p for p in [a, b, c] if p != p2 and p != p1][0]
+            
+            for x in range(x_min, x_max+1):
+                for y in range(y_min, y_max+1):
+                    
+                    inside = isInside(a, b, c, x, y)
+                    
+                    if inside:
+                        gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                        
+                        
+            
+                
+                
 
-        # Exemplo:
-        gpu.GPU.draw_pixel([6, 8], gpu.GPU.RGB8, [255, 255, 0])  # altera pixel (u, v, tipo, r, g, b)
+            
+            
+            
+        
+        
+        
+        
 
 
     @staticmethod
