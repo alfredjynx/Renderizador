@@ -182,7 +182,7 @@ class GL:
             v2 = L(p2, p3, x, y)
             v3 = L(p3, p1, x, y)
             
-            return (v1 >= 0 and v2 >= 0 and v3 >= 0) or (v1 <= 0 and v2 <= 0 and v3 <= 0)
+            return (v1 >= 0 and v2 >= 0 and v3 >= 0)
             
         for p in range(0, len(vertices)-5, 6):
             
@@ -199,28 +199,48 @@ class GL:
             y_min = math.floor(min(ys))
             y_max = math.ceil(max(ys))
             
-            # Não deu certo
-            # # Colocar os pontos em ordem anti-horária
             
-            # # Primeiro ponto é o mais baixo
-            # p1 = [p for p in [a, b, c] if p[1] == y_min][0]
             
-            # # Segundo ponto é o que está à direita ou acima do ponto anterior
-            # if p1[0] == x_max:
-            #     p2 = [p for p in [a, b, c] if p[1] == y_max][0]
-            # else:
-            #     p2 = [p for p in [a, b, c] if p[0] == x_max][0]
+            # Ordenando Pontos
+            # Fonte: https://stackoverflow.com/questions/41855695/sorting-list-of-two-dimensional-coordinates-by-clockwise-angle-using-python
             
-            # # O último é o que não foi definido até agora
-            # p3 = [p for p in [a, b, c] if p != p2 and p != p1][0]
+            
+            origin = [(a[0] + b[0] + c[0])/3, (a[1] + b[1] + c[1])/3]
+            refvec = [0, 1]
+
+            def clockwiseangle_and_distance(point):
+                # Vector between point and the origin: v = p - o
+                vector = [point[0]-origin[0], point[1]-origin[1]]
+                # Length of vector: ||v||
+                lenvector = math.hypot(vector[0], vector[1])
+                # If length is zero there is no angle
+                if lenvector == 0:
+                    return -math.pi, 0
+                # Normalize vector: v/||v||
+                normalized = [vector[0]/lenvector, vector[1]/lenvector]
+                dotprod  = normalized[0]*refvec[0] + normalized[1]*refvec[1]     # x1*x2 + y1*y2
+                diffprod = refvec[1]*normalized[0] - refvec[0]*normalized[1]     # x1*y2 - y1*x2
+                angle = math.atan2(diffprod, dotprod)
+                # Negative angles represent counter-clockwise angles so we need to subtract them 
+                # from 2*pi (360 degrees)
+                if angle < 0:
+                    return 2*math.pi+angle, lenvector
+                # I return first the angle because that's the primary sorting criterium
+                # but if two vectors have the same angle then the shorter distance should come first.
+                return angle, lenvector
+            pts = [a, b, c]
+            s_pts = sorted(pts, key=clockwiseangle_and_distance)
+            
             
             for x in range(x_min, x_max+1):
                 for y in range(y_min, y_max+1):
+                    if 0 <= x < GL.width and 0 <= y < GL.height:
                     
-                    inside = isInside(a, b, c, x, y)
-                    
-                    if inside:
-                        gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                        inside = isInside(s_pts[0], s_pts[1], s_pts[2], x, y)
+                        
+                        
+                        if inside:
+                            gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                         
                         
             
