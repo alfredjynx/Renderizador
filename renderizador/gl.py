@@ -75,62 +75,55 @@ class GL:
                 
         for p in range(0, len(lineSegments)-2, 2):
             
-            x1 = int(lineSegments[p])
-            y1 = int(lineSegments[p+1])
-            x2 = int(lineSegments[p+2])
-            y2 = int(lineSegments[p+3])
+            x1 = lineSegments[p]
+            y1 = lineSegments[p+1]
+            x2 = lineSegments[p+2]
+            y2 = lineSegments[p+3]
             
             
             if x1 == x2:
-                for u in range(y1, y2+1):
+                passo = 1 if y2 >= y1 else -1
+                for u in range(round(y1), round(y2) + passo, passo):
                     if 0 <= u < GL.height and 0 <= x1 < GL.width:
-                        gpu.GPU.draw_pixel([x1, u], gpu.GPU.RGB8, color)
+                        gpu.GPU.draw_pixel([round(x1), u], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
             elif y1 == y2:
-                for u in range(x1, x2+1):
+                passo = 1 if x2 >= x1 else -1
+                for u in range(round(x1), round(x2) + passo, passo):
                     if 0 <= u < GL.width and 0 <= y1 < GL.height:
-                        gpu.GPU.draw_pixel([u, y1], gpu.GPU.RGB8, color)
+                        gpu.GPU.draw_pixel([u, round(y1)], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                     
             else:                
-                v = y1
-                s = (y2-y1)/(x2-x1)
-                
-                if s > 1:
+                dx = x2 - x1
+                dy = y2 - y1
+
+                vertical = abs(dy) > abs(dx) 
+                        
+                if vertical:
                     v = x1
-                    s = (x2-x1)/(y2-y1)
-                    
-                    for u in range(y1, y2+1):
-                        
-                        if 0 <= u < GL.height and 0 <= v < GL.width:
-                            gpu.GPU.draw_pixel([round(v), u], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                    s = dx / dy
+                    passo = 1 if dy >= 0 else -1
+                    start_u, end_u = round(y1), round(y2)
+
+                    for u in range(start_u, end_u + passo, passo):
+                        xi = round(v)
+                        yi = u
+                        if 0 <= yi < GL.height and 0 <= xi < GL.width:
+                            gpu.GPU.draw_pixel([xi, yi], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                         v += s
-                
                 else:
-                    for u in range(x1, x2+1):
-                        
-                        if 0 <= u < GL.width and 0 <= v < GL.height:
-                            gpu.GPU.draw_pixel([u, round(v)], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+                    v = y1
+                    s = dy / dx
+                    passo = 1 if dx >= 0 else -1
+                    start_u, end_u = round(x1), round(x2)
+
+                    for u in range(start_u, end_u + passo, passo):
+                        xi = u
+                        yi = round(v)
+                        if 0 <= xi < GL.width and 0 <= yi < GL.height:
+                            gpu.GPU.draw_pixel([xi, yi], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                         v += s
-                    
-                    
-                # Pesquisa - https://www.geeksforgeeks.org/dsa/bresenhams-line-generation-algorithm/
                 
-                # m_new = 2 * (y2 - y1)
-                # slope_error_new = m_new - (x2 - x1)
-
-                # y = y1
-                # for x in range(x1, x2+1):
-
-                #     gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
-
-
-                #     # Add slope to increment angle formed
-                #     slope_error_new = slope_error_new + m_new
-
-                #     # Slope error reached limit, time to
-                #     # increment y and update slope error.
-                #     if (slope_error_new >= 0):
-                #         y = y+1
-                #         slope_error_new = slope_error_new - 2 * (x2 - x1)
+                    
             
             
             
@@ -194,9 +187,9 @@ class GL:
             
         for p in range(0, len(vertices)-5, 6):
             
-            a = (round(vertices[p]), round(vertices[p+1]))   
-            b = (round(vertices[p+2]), round(vertices[p+3]))   
-            c = (round(vertices[p+4]), round(vertices[p+5]))
+            a = (vertices[p], vertices[p+1])   
+            b = (vertices[p+2], vertices[p+3])   
+            c = (vertices[p+4], vertices[p+5])
                                     
             xs = [a[0], b[0], c[0]]
             ys = [a[1], b[1], c[1]]
