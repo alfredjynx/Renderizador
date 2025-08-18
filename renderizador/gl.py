@@ -72,13 +72,15 @@ class GL:
         
         color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
         
+        print(lineSegments)
+        
                 
         for p in range(0, len(lineSegments)-2, 2):
             
-            x1 = lineSegments[p]
-            y1 = lineSegments[p+1]
-            x2 = lineSegments[p+2]
-            y2 = lineSegments[p+3]
+            x1 = round(lineSegments[p])
+            y1 = round(lineSegments[p+1])
+            x2 = round(lineSegments[p+2])
+            y2 = round(lineSegments[p+3])
             
             
             if x1 == x2:
@@ -86,39 +88,67 @@ class GL:
                 for u in range(round(y1), round(y2) + passo, passo):
                     if 0 <= u < GL.height and 0 <= x1 < GL.width:
                         gpu.GPU.draw_pixel([round(x1), u], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
-            elif y1 == y2:
-                passo = 1 if x2 >= x1 else -1
-                for u in range(round(x1), round(x2) + passo, passo):
-                    if 0 <= u < GL.width and 0 <= y1 < GL.height:
-                        gpu.GPU.draw_pixel([u, round(y1)], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
-                    
-            else:                
+            else:                                
+                
                 dx = x2 - x1
                 dy = y2 - y1
-
-                vertical = abs(dy) > abs(dx) 
-                        
+                
+                s = dy / dx
+                
+                vertical = abs(dy) >= abs(dx)
+                                        
                 if vertical:
-                    v = x1
+                    
+                    
+                    if y2 > y1:
+                        px1 = x1
+                        px2 = x2
+                        py1 = y1
+                        py2 = y2
+                    else:
+                        px1 = x2
+                        px2 = x1
+                        py1 = y2
+                        py2 = y1
+                    
+                    dx = px2 - px1
+                    dy = py2 - py1
+                    
+                    v = px1
                     s = dx / dy
-                    passo = 1 if dy >= 0 else -1
-                    start_u, end_u = round(y1), round(y2)
+                    start_u, end_u = round(py1), round(py2)
 
-                    for u in range(start_u, end_u + passo, passo):
-                        xi = round(v)
+                    for u in range(start_u, end_u+1):
                         yi = u
-                        if 0 <= yi < GL.height and 0 <= xi < GL.width:
+                        xi = round(v)
+
+                        if 0 <= xi < GL.width and 0 <= yi < GL.height:
                             gpu.GPU.draw_pixel([xi, yi], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                         v += s
                 else:
-                    v = y1
+                    
+                    if x2 > x1:
+                        px1 = x1
+                        px2 = x2
+                        py1 = y1
+                        py2 = y2
+                    else:
+                        px1 = x2
+                        px2 = x1
+                        py1 = y2
+                        py2 = y1
+                    
+                    dx = px2 - px1
+                    dy = py2 - py1
+                    
+                    v = py1
                     s = dy / dx
-                    passo = 1 if dx >= 0 else -1
-                    start_u, end_u = round(x1), round(x2)
-
-                    for u in range(start_u, end_u + passo, passo):
+                    start_u, end_u = round(px1), round(px2)
+                    
+                    for u in range(start_u, end_u+1):
                         xi = u
                         yi = round(v)
+
                         if 0 <= xi < GL.width and 0 <= yi < GL.height:
                             gpu.GPU.draw_pixel([xi, yi], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
                         v += s
