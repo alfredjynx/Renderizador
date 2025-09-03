@@ -23,6 +23,120 @@ class GL:
     height = 600  # altura da tela
     near = 0.01   # plano de corte próximo
     far = 1000    # plano de corte distante
+    
+    aspect = width/height
+
+    top = 0
+    bottom = 0
+    right = 0
+    left = -0
+    
+    VIEW = None
+    
+    STACK = []
+    
+    
+    def axis_angle_to_quat(axis, angle):
+    
+        ax = np.asarray(axis, dtype=float)
+        n = np.linalg.norm(ax)
+        
+        if n == 0:
+            return (0.0, 0.0, 0.0, 1.0)
+        
+        ax = ax / n
+        
+        half = angle * 0.5
+        
+        s = np.sin(half)
+        qr = np.cos(half)   
+            
+        qi, qj, qk = ax * s   
+            
+        return (qi, qj, qk, qr)
+    
+    def look_at(eye, at, up):
+        def _norm(v): 
+            return float(np.linalg.norm(v))
+
+        def normalize(v, name, eps=1e-12):
+            n = _norm(v)
+            if n < eps:
+                raise ValueError(f"Cannot normalize. {name}")
+            return v / n
+
+        
+        w = normalize(at - eye, "at - eye")       
+        u = normalize(np.cross(w, up), "up")    
+        v = np.cross(u, w)                
+
+        T = np.array([
+            [1, 0, 0, -eye[0]],
+            [0, 1, 0, -eye[1]],
+            [0, 0, 1, -eye[2]],
+            [0, 0, 0, 1]
+        ])
+        
+        M = np.array([
+            [u[0], v[0], -w[0], 0],
+            [u[1], v[1], -w[1], 0],
+            [u[2], v[2], -w[2], 0],
+            [0, 0, 0, 1]
+        ]).T
+
+        return M @ T
+
+    
+
+    def rotation_matrix(qi, qj, qk, qr):
+        q = np.array([qr, qi, qj, qk], dtype=float)
+        
+        n = np.linalg.norm(q)
+        
+        if n == 0:
+            return np.eye(4)
+        
+        qr, qi, qj, qk = q / n  
+
+        return np.array([
+            [1 - 2*(qj*qj + qk*qk),   2*(qi*qj - qk*qr),   2*(qi*qk + qj*qr), 0],
+            [2*(qi*qj + qk*qr),       1 - 2*(qi*qi + qk*qk), 2*(qj*qk - qi*qr), 0],
+            [2*(qi*qk - qj*qr),       2*(qj*qk + qi*qr),   1 - 2*(qi*qi + qj*qj), 0],
+            [0,                       0,                   0,                   1]
+        ], dtype=float)
+        
+        
+    def scale_matrix(x, y, z):
+        return np.array([
+            [x, 0, 0, 0],
+            [0, y, 0, 0],
+            [0, 0, z, 0],
+            [0, 0, 0, 1]
+        ])
+        
+    def translation_matrix(x, y, z):
+        return np.array([
+            [1, 0, 0, x],
+            [0, 1, 0, y],
+            [0, 0, 1, z],
+            [0, 0, 0, 1]
+        ])
+
+    def perspective_matrix(far, near, right, top):
+        return np.array([
+            [near/right, 0, 0, 0],
+            [0, near/top, 0, 0],
+            [0, 0, -((far+near)/(far-near)), -(2*far*near)/(far-near)],
+            [0, 0, -1, 0]
+        ])
+
+    def screen_transformation(W,H):
+        return np.array([
+            [W/2, 0, 0, W/2],
+            [0, -H/2, 0, H/2],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ])
 
     @staticmethod
     def setup(width, height, near=0.01, far=1000):
@@ -308,7 +422,108 @@ class GL:
         print("TriangleSet : colors = {0}".format(colors)) # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        
+        def isInside(p1, p2, p3, x, y):
+            
+            def L(a, b, x, y):
+                x0, y0 = a 
+                x1, y1 = b
+                return (y1 - y0) * (x - x0) - (x1 - x0) * (y - y0)
+                
+            v1 = L(p1, p2, x, y)
+            v2 = L(p2, p3, x, y)
+            v3 = L(p3, p1, x, y)
+            
+            # return (v1 > 0 and v2 > 0 and v3 > 0)
+            return (v1 >= 0 and v2 >= 0 and v3 >= 0)
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+        
+        for p in range(0, len(point)-5, 9):
+            
+            triangulo = np.array([
+                [point[p], point[p+1], point[p+2], 1],  
+                [point[p+3], point[p+4], point[p+5], 1],  
+                [point[p+6], point[p+7], point[p+8], 1]
+            ]).T
+            
+            
+            
+            triangulo_projetado = GL.perspective_matrix(GL.far, GL.near, GL.right, GL.top) @ GL.VIEW @ GL.STACK[-1] @ triangulo
+
+            triangulo_projetado[0, :] = triangulo_projetado[0, :] / triangulo_projetado[3, :]
+
+            triangulo_projetado[1, :] = triangulo_projetado[1, :] / triangulo_projetado[3, :]
+                
+            triangulo_projetado[2, :] = triangulo_projetado[2, :] / triangulo_projetado[3, :]
+
+            triangulo_projetado[3, :] = triangulo_projetado[3, :] / triangulo_projetado[3, :]
+
+
+            triangulo_projetado = GL.screen_transformation(GL.width, GL.height) @ triangulo_projetado
+            
+            
+            a = (triangulo_projetado[0][0], triangulo_projetado[1][0])   
+            b = (triangulo_projetado[0][1], triangulo_projetado[1][1])   
+            c = (triangulo_projetado[0][2], triangulo_projetado[1][2])
+                                    
+            xs = [a[0], b[0], c[0]]
+            ys = [a[1], b[1], c[1]]
+            
+            x_min = math.floor(min(xs))
+            x_max = math.ceil(max(xs))
+            
+            y_min = math.floor(min(ys))
+            y_max = math.ceil(max(ys))
+            
+            
+            
+            # Ordenando Pontos
+            # Fonte: https://stackoverflow.com/questions/41855695/sorting-list-of-two-dimensional-coordinates-by-clockwise-angle-using-python
+            
+            
+            origin = [(a[0] + b[0] + c[0])/3, (a[1] + b[1] + c[1])/3]
+            refvec = [0, 1]
+
+            def clockwiseangle_and_distance(point):
+                # Vector between point and the origin: v = p - o
+                vector = [point[0]-origin[0], point[1]-origin[1]]
+                # Length of vector: ||v||
+                lenvector = math.hypot(vector[0], vector[1])
+                # If length is zero there is no angle
+                if lenvector == 0:
+                    return -math.pi, 0
+                # Normalize vector: v/||v||
+                normalized = [vector[0]/lenvector, vector[1]/lenvector]
+                dotprod  = normalized[0]*refvec[0] + normalized[1]*refvec[1]     # x1*x2 + y1*y2
+                diffprod = refvec[1]*normalized[0] - refvec[0]*normalized[1]     # x1*y2 - y1*x2
+                angle = math.atan2(diffprod, dotprod)
+                # Negative angles represent counter-clockwise angles so we need to subtract them 
+                # from 2*pi (360 degrees)
+                if angle < 0:
+                    return 2*math.pi+angle, lenvector
+                # I return first the angle because that's the primary sorting criterium
+                # but if two vectors have the same angle then the shorter distance should come first.
+                return angle, lenvector
+            pts = [a, b, c]
+            s_pts = sorted(pts, key=clockwiseangle_and_distance)
+            
+            
+            for x in range(x_min, x_max+1):
+                for y in range(y_min, y_max+1):
+                    if 0 <= x < GL.width and 0 <= y < GL.height:
+                    
+                        inside = isInside(s_pts[0], s_pts[1], s_pts[2], x, y)
+                        
+                        if inside:
+                            gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)  # altera pixel (u, v, tipo, r, g, b)
+            
+            
+            
+            
+            
+        
 
     @staticmethod
     def viewpoint(position, orientation, fieldOfView):
@@ -322,9 +537,38 @@ class GL:
         print("position = {0} ".format(position), end='')
         print("orientation = {0} ".format(orientation), end='')
         print("fieldOfView = {0} ".format(fieldOfView))
+        
+        axis  = orientation[:3]
+        angle = float(orientation[3])
+
+        qi, qj, qk, qr = GL.axis_angle_to_quat(axis, angle)
+        R4 = GL.rotation_matrix(qi, qj, qk, qr)
+        R  = R4[:3, :3]                  
+
+        fwd_cam = np.array([0.0, 0.0, -1.0])  
+        up_cam  = np.array([0.0, 1.0,  0.0])  
+
+        fwd_world = R @ fwd_cam
+        up_world  = R @ up_cam
+
+        eye = np.array(position)
+        at  = eye + fwd_world
+        up  = up_world
+
+        GL.VIEW = GL.look_at(eye, at, up)
+        
+        GL.top = GL.near * np.tan(fieldOfView/2)
+        GL.bottom = -GL.top
+        GL.right = GL.top*GL.aspect
+        GL.left = -GL.right
+
+        
+        
 
     @staticmethod
     def transform_in(translation, scale, rotation):
+        
+        
         """Função usada para renderizar (na verdade coletar os dados) de Transform."""
         # A função transform_in será chamada quando se entrar em um nó X3D do tipo Transform
         # do grafo de cena. Os valores passados são a escala em um vetor [x, y, z]
@@ -345,6 +589,19 @@ class GL:
         if rotation:
             print("rotation = {0} ".format(rotation), end='') # imprime no terminal
         print("")
+        
+        axis  = rotation[:3]
+        angle = float(rotation[3])
+        qi, qj, qk, qr = GL.axis_angle_to_quat(axis, angle)
+        
+        mundo = GL.translation_matrix(translation[0], translation[1], translation[2]) @ GL.rotation_matrix(qi, qj, qk, qr) @ GL.scale_matrix(scale[0], scale[1], scale[2])
+        
+        if len(GL.STACK)==0:
+            GL.STACK.append(mundo)
+        else:
+            M = GL.STACK[-1]
+            GL.STACK.append(mundo @ M)
+            
 
     @staticmethod
     def transform_out():
@@ -356,6 +613,19 @@ class GL:
 
         # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
         print("Saindo de Transform")
+        
+        GL.STACK.pop()
+
+
+
+
+
+
+
+
+
+
+
 
     @staticmethod
     def triangleStripSet(point, stripCount, colors):
