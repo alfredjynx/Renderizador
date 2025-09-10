@@ -36,6 +36,99 @@ class GL:
     STACK = []
     
     
+    
+    def TriangleArea(a, b, c):
+        
+        x0, y0 = a[0], a[1]
+        x1, y1 = b[0], b[1]
+        x2, y2 = c[0], c[1]
+        
+        return abs(x0*(y1-y2) + x1*(y2-y0) +x2*(y0-y1))/2
+    
+    
+    def Baricentricas(a, b, c, p):
+        
+        Aa = GL.TriangleArea(p, b, c)
+        Ab = GL.TriangleArea(a, p, c)
+        Ac = GL.TriangleArea(a, b, p)
+        
+        total = GL.TriangleArea(a, b, c)
+        
+        alpha = Aa/total
+        
+        beta = Ab/total
+        
+        gamma = Ac/total
+        
+        return alpha, beta, gamma
+        
+        
+    
+    
+    def TriangleDraw(a, b, c, color):
+        
+        def isInside(p1, p2, p3, x, y):
+            
+            def L(a, b, x, y):
+                x0, y0 = a 
+                x1, y1 = b
+                return (y1 - y0) * (x - x0) - (x1 - x0) * (y - y0)
+                
+            v1 = L(p1, p2, x, y)
+            v2 = L(p2, p3, x, y)
+            v3 = L(p3, p1, x, y)
+            
+            return (v1 >= 0 and v2 >= 0 and v3 >= 0) or (v1 <= 0 and v2 <= 0 and v3 <= 0)
+                    
+    
+            
+        triangulo = np.array([
+            [a[0], a[1], a[2], 1],  
+            [b[0], b[1], b[2], 1],  
+            [c[0], c[1], c[2], 1]
+        ]).T
+        
+        
+        
+        triangulo_projetado = GL.perspective_matrix(GL.far, GL.near, GL.right, GL.top) @ GL.VIEW @ GL.STACK[-1] @ triangulo
+
+        triangulo_projetado[0, :] = triangulo_projetado[0, :] / triangulo_projetado[3, :]
+
+        triangulo_projetado[1, :] = triangulo_projetado[1, :] / triangulo_projetado[3, :]
+            
+        triangulo_projetado[2, :] = triangulo_projetado[2, :] / triangulo_projetado[3, :]
+
+        triangulo_projetado[3, :] = triangulo_projetado[3, :] / triangulo_projetado[3, :]
+
+
+        triangulo_projetado = GL.screen_transformation(GL.width, GL.height) @ triangulo_projetado
+        
+        
+        a = (triangulo_projetado[0][0], triangulo_projetado[1][0])   
+        b = (triangulo_projetado[0][1], triangulo_projetado[1][1])   
+        c = (triangulo_projetado[0][2], triangulo_projetado[1][2])
+                                
+        xs = [a[0], b[0], c[0]]
+        ys = [a[1], b[1], c[1]]
+        
+        x_min = math.floor(min(xs))
+        x_max = math.ceil(max(xs))
+        
+        y_min = math.floor(min(ys))
+        y_max = math.ceil(max(ys))
+        
+    
+        
+        
+        for x in range(x_min, x_max+1):
+            for y in range(y_min, y_max+1):
+                if 0 <= x < GL.width and 0 <= y < GL.height:
+                
+                    inside = isInside(a, b, c, x, y)
+                    
+                    if inside:
+                        gpu.GPU.draw_pixel([x, y], gpu.GPU.RGB8, color)
+    
     def axis_angle_to_quat(axis, angle):
     
         ax = np.asarray(axis, dtype=float)
@@ -54,6 +147,8 @@ class GL:
         qi, qj, qk = ax * s   
             
         return (qi, qj, qk, qr)
+        
+        
     
     def look_at(eye, at, up):
         def _norm(v): 
@@ -448,7 +543,7 @@ class GL:
                 [point[p+6], point[p+7], point[p+8], 1]
             ]).T
             
-            
+                        
             
             triangulo_projetado = GL.perspective_matrix(GL.far, GL.near, GL.right, GL.top) @ GL.VIEW @ GL.STACK[-1] @ triangulo
 
@@ -557,11 +652,16 @@ class GL:
 
         GL.VIEW = GL.look_at(eye, at, up)
         
+        # t = GL.translation_matrix(position[0], position[1], position[2])
+        
+        # GL.VIEW = t @ R4
+        
         GL.top = GL.near * np.tan(fieldOfView/2)
         GL.bottom = -GL.top
         GL.right = GL.top*GL.aspect
         GL.left = -GL.right
 
+        print(GL.VIEW)
         
         
 
@@ -581,6 +681,8 @@ class GL:
         # Você precisará usar alguma estrutura de dados pilha para organizar as matrizes.
 
         # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
+        
+        
         print("Transform : ", end='')
         if translation:
             print("translation = {0} ".format(translation), end='') # imprime no terminal
@@ -593,15 +695,16 @@ class GL:
         axis  = rotation[:3]
         angle = float(rotation[3])
         qi, qj, qk, qr = GL.axis_angle_to_quat(axis, angle)
-        
+                
         mundo = GL.translation_matrix(translation[0], translation[1], translation[2]) @ GL.rotation_matrix(qi, qj, qk, qr) @ GL.scale_matrix(scale[0], scale[1], scale[2])
+        
         
         if len(GL.STACK)==0:
             GL.STACK.append(mundo)
         else:
             M = GL.STACK[-1]
-            GL.STACK.append(mundo @ M)
-            
+            GL.STACK.append(M @ mundo)
+                
 
     @staticmethod
     def transform_out():
@@ -615,6 +718,9 @@ class GL:
         print("Saindo de Transform")
         
         GL.STACK.pop()
+
+
+
 
 
 
@@ -650,7 +756,21 @@ class GL:
         print("TriangleStripSet : colors = {0}".format(colors)) # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        
+                
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+        
+    
+        for p in range(0, len(point)-8, 3):
+            
+            a = [point[p], point[p+1], point[p+2]]
+            b = [point[p+3], point[p+4], point[p+5]]
+            c = [point[p+6], point[p+7], point[p+8]]
+            
+            GL.TriangleDraw(a, b, c, color)
+
 
     @staticmethod
     def indexedTriangleStripSet(point, index, colors):
@@ -673,7 +793,24 @@ class GL:
         print("IndexedTriangleStripSet : colors = {0}".format(colors)) # imprime as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        
+        
+        color = list(map(int, list(map(lambda x: 255*x, colors["emissiveColor"]))))
+    
+        for i in range(len(index)-3):
+            
+            ia = index[i]*3
+            ib = index[i+1]*3
+            ic = index[i+2]*3
+            
+            
+            a = [point[ia], point[ia+1], point[ia+2]]
+            b = [point[ib], point[ib+1], point[ib+2]]
+            c = [point[ic], point[ic+1], point[ic+2]]
+            
+            GL.TriangleDraw(a, b, c, color)
+        
 
     @staticmethod
     def indexedFaceSet(coord, coordIndex, colorPerVertex, color, colorIndex,
@@ -716,7 +853,63 @@ class GL:
         print("IndexedFaceSet : colors = {0}".format(colors))  # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+
+
+
+        if not colorPerVertex or not color or not colorIndex:
+            colorPerVertex = False
+            color = [int(255 * colors['emissiveColor'][i]) for i in range(len(colors["emissiveColor"]))]
+        
+        
+        
+        vertices = {i: [coord[3*i], coord[3*i+1], coord[3*i+2]] for i in range(len(coord)//3)}
+
+        i = 0
+        n = len(coordIndex)
+        while i < n:
+            
+            if coordIndex[i] == -1: 
+                i += 1
+                continue
+
+            if i + 3 >= n:
+                break
+            
+            a_id, b_id, c_id, sep = coordIndex[i], coordIndex[i+1], coordIndex[i+2], coordIndex[i+3]
+            
+
+            a = vertices[a_id]
+            b = vertices[b_id]
+            c = vertices[c_id]
+
+
+            GL.TriangleDraw(a, b, c, color)
+            
+            if sep != -1:
+                i+=1
+            else:
+                i += 4
+
+            
+            
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     @staticmethod
     def box(size, colors):
